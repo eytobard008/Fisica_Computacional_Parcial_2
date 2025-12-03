@@ -1,0 +1,343 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[spanish]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{shapes,patterns,calc}
+
+% Configuración para código
+\lstset{
+    language=C++,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{green},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    frame=single,
+    breaklines=true
+}
+
+\title{Análisis Físico: Simulación de N Partículas en una Caja 2D}
+\author{Esteban Tobar 20221107008}
+\date{}
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Este documento presenta el análisis físico y numérico de la simulación de un sistema de N partículas esféricas confinadas en una caja bidimensional. Se implementó un programa en C++ utilizando programación orientada a objetos para modelar colisiones elásticas entre partículas y con las paredes. Se estudió la distribución de velocidades, conservación de energía y cálculo de presión mediante dos métodos diferentes.
+\end{abstract}
+
+\section{Introducción y Objetivos}
+\label{sec:introduccion}
+
+En este trabajo simulamos el comportamiento de N partículas idénticas confinadas en una caja rectangular de dimensiones $W \times H$, donde cada partícula tiene radio $r \ll \min(W,H)$.
+
+Los objetivos principales son:
+\begin{itemize}
+    \item Implementar un simulador eficiente usando POO en C++
+    \item Analizar la distribución de velocidades y compararla con Maxwell-Boltzmann
+    \item Verificar la conservación de energía total del sistema
+    \item Calcular presión mediante métodos cinéticos y de colisiones
+\end{itemize}
+
+\section{Verificación de Aforo}
+\label{sec:aforo}
+
+Antes de iniciar la simulación, el programa verifica que las partículas puedan caber en la caja sin solapamientos. El cálculo considera el empaquetamiento hexagonal óptimo, que permite acomodar más partículas que el empaquetamiento rectangular.
+
+\subsection{Empaquetamiento Hexagonal}
+En el empaquetamiento hexagonal, las filas se desplazan alternadamente para maximizar el número de partículas. La distancia entre centros en la dirección horizontal es $2R$, y en la dirección vertical es $\sqrt{3}R$.
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.4\linewidth]{Empaquetamiento hexagonal.png}
+\end{figure}
+
+El número máximo de partículas se calcula considerando que:
+\begin{itemize}
+    \item Las filas pares tienen $n_{\text{cols}}$ partículas
+    \item Las filas impares tienen $n_{\text{cols}} - 1$ partículas (debido al desplazamiento)
+\end{itemize}
+
+\begin{align*}
+    n_{\text{cols}} &= \left\lfloor \frac{W}{2R} \right\rfloor \\
+    n_{\text{filas}} &= \left\lfloor \frac{H}{\sqrt{3}R} \right\rfloor \\
+    N_{\text{max}} &= \begin{cases}
+        n_{\text{cols}} \times \frac{n_{\text{filas}} + 1}{2} + (n_{\text{cols}} - 1) \times \frac{n_{\text{filas}} - 1}{2} & \text{si } n_{\text{filas}} \text{ es impar} \\
+        n_{\text{cols}} \times \frac{n_{\text{filas}}}{2} + (n_{\text{cols}} - 1) \times \frac{n_{\text{filas}}}{2} & \text{si } n_{\text{filas}} \text{ es par}
+    \end{cases}
+\end{align*}
+
+En la práctica, tu código implementa una versión iterativa de este cálculo que es más precisa.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{Ubicar pepas.png}
+    \label{fig:placeholder}
+\end{figure}
+
+
+
+\section{Modelo Físico y Matemático}
+\label{sec:modelo}
+
+\subsection{Dinámica de las Partículas}
+Cada partícula $i$ tiene masa $m$, posición $\mathbf{r}_i = (x_i, y_i)$ y velocidad $\mathbf{v}_i = (v_{x_i}, v_{y_i})$. La evolución temporal entre colisiones sigue:
+
+\begin{equation}
+    \frac{d\mathbf{r}_i}{dt} = \mathbf{v}_i, \quad \frac{d\mathbf{v}_i}{dt} = \mathbf{0}
+\end{equation}
+
+\subsection{Colisiones entre Partículas}
+Para dos partículas $i$ y $j$ en colisión, definimos el vector unitario normal:
+\begin{equation}
+    \hat{\mathbf{n}} = \frac{\mathbf{r}_j - \mathbf{r}_i}{|\mathbf{r}_j - \mathbf{r}_i|}
+\end{equation}
+
+Las velocidades después de la colisión elástica se calculan como:
+\begin{align}
+    \mathbf{v}_i' &= \mathbf{v}_i - [(\mathbf{v}_i - \mathbf{v}_j) \cdot \hat{\mathbf{n}}] \hat{\mathbf{n}} \\
+    \mathbf{v}_j' &= \mathbf{v}_j - [(\mathbf{v}_j - \mathbf{v}_i) \cdot \hat{\mathbf{n}}] \hat{\mathbf{n}}
+\end{align}
+
+
+\subsection{Colisiones con las Paredes}
+Para colisiones con paredes en $x = 0$ y $x = W$:
+\begin{align}
+    v_x' &= -v_x \\
+    v_y' &= v_y
+\end{align}
+
+Para colisiones con paredes en $y = 0$ y $y = H$:
+\begin{align}
+    v_x' &= v_x \\
+    v_y' &= -v_y
+\end{align}
+
+\section{Métodos Numéricos}
+\label{sec:metodos}
+
+\subsection{Integración Temporal - Método de Euler}
+El método de Euler forward se implementa como:
+\begin{align}
+    \mathbf{r}(t + \Delta t) &= \mathbf{r}(t) + \mathbf{v}(t) \Delta t \\
+    \mathbf{v}(t + \Delta t) &= \mathbf{v}(t) \quad \text{(entre colisiones)}
+\end{align}
+
+\subsection{Equivalencia de Métodos de Integración sin Fuerzas}
+En esta simulación, entre colisiones no hay fuerzas actuando sobre las partículas ($\mathbf{a} = 0$). En este caso especial, varios métodos de integración numérica se reducen al mismo algoritmo.
+
+\subsubsection{Ecuaciones del Movimiento}
+Entre colisiones, cada partícula sigue movimiento rectilíneo uniforme:
+\begin{align}
+    \frac{d\mathbf{r}}{dt} &= \mathbf{v} \\
+    \frac{d\mathbf{v}}{dt} &= \mathbf{0}
+\end{align}
+
+\subsubsection{Reducción al Método de Euler}
+
+\textbf{Velocity-Verlet:}
+\begin{align}
+    x(t + \Delta t) &= x(t) + v(t) \Delta t + \frac{1}{2} a(t) \Delta t^2 \\
+    v(t + \Delta t) &= v(t) + \frac{1}{2} [a(t) + a(t + \Delta t)] \Delta t
+\end{align}
+Con $a(t) = 0$ y $a(t + \Delta t) = 0$, se reduce a:
+\begin{align}
+    x(t + \Delta t) &= x(t) + v(t) \Delta t \\
+    v(t + \Delta t) &= v(t)
+\end{align}
+
+\textbf{Leapfrog:}
+\begin{align}
+    v\left(t + \frac{\Delta t}{2}\right) &= v\left(t - \frac{\Delta t}{2}\right) + a(t) \Delta t \\
+    x(t + \Delta t) &= x(t) + v\left(t + \frac{\Delta t}{2}\right) \Delta t
+\end{align}
+Con $a(t) = 0$, la velocidad se mantiene constante y el método se reduce a Euler.
+
+\textbf{Runge-Kutta de 4º Orden (RK4):}
+Para la ecuación $\frac{dx}{dt} = f(t, x) = v$ (con $v$ constante):
+\begin{align*}
+    k_1 &= f(t, x) = v \\
+    k_2 &= f(t + \tfrac{\Delta t}{2}, x + \tfrac{\Delta t}{2} k_1) = v \\
+    k_3 &= f(t + \tfrac{\Delta t}{2}, x + \tfrac{\Delta t}{2} k_2) = v \\
+    k_4 &= f(t + \Delta t, x + \Delta t k_3) = v
+\end{align*}
+\begin{align}
+    x(t + \Delta t) &= x(t) + \frac{\Delta t}{6}(k_1 + 2k_2 + 2k_3 + k_4) \\
+    &= x(t) + \frac{\Delta t}{6}(v + 2v + 2v + v) \\
+    &= x(t) + v \Delta t
+\end{align}
+
+
+\subsection{Detección de Colisiones}
+Se implementan dos métodos:
+
+\textbf{Normal:}
+\begin{equation}
+    (x_i - x_j)^2 + (y_i - y_j)^2 \leq (2R)^2
+\end{equation}
+
+\textbf{Malla:}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.8]
+    % Malla 5x5
+    \draw[step=1.2, gray, very thin] (0,0) grid (6,6);
+    
+    % Partículas en las posiciones especificadas
+    \filldraw[black] (1.2*2 + 0.6, 1.2*4 + 0.6) circle (0.3); % Celda (2,4) - partícula 8
+    \filldraw[black] (1.2*2 + 0.6, 1.2*1 + 0.6) circle (0.3);  % Celda (2,1) - partícula 23 (MOVIDA 1 CUADRO A LA DERECHA)
+    
+    % Etiquetas simples
+    \node[below] at (3, -0.3) {Malla espacial 5×5};
+\end{tikzpicture}
+\caption{Malla espacial para detección de colisiones. Cada partícula solo verifica colisiones con partículas en celdas vecinas.}
+\label{fig:malla}
+\end{figure}
+
+\section{Cálculo de Presión}
+\label{sec:presion}
+
+\subsection{Método Cinético}
+En 2D, la presión se define como fuerza por unidad de longitud. Partimos de la definición fundamental:
+
+\begin{equation}
+    P = \frac{F}{L}
+\end{equation}
+
+Para una partícula con velocidad $v_x$ que choca elásticamente con la pared vertical, el cambio de momento es:
+\begin{equation}
+    \Delta p_x = 2m|v_x|
+\end{equation}
+
+La fuerza ejercida por una partícula es:
+\begin{equation}
+    F_x = \frac{\Delta p_x}{\Delta t} = \frac{2m|v_x|}{\Delta t}
+\end{equation}
+
+El tiempo entre colisiones para una partícula con la misma pared es $\Delta t = \frac{2W}{|v_x|}$, por lo que la fuerza media por partícula es:
+\begin{equation}
+    F_x = \frac{2m|v_x|}{\frac{2W}{|v_x|}} = \frac{m v_x^2}{W}
+\end{equation}
+
+Para $N$ partículas, la fuerza total en la dirección $x$ es:
+\begin{equation}
+    F_x = \frac{N m \langle v_x^2 \rangle}{W}
+\end{equation}
+
+La presión en la dirección $x$ es entonces:
+\begin{equation}
+    P_x = \frac{F_x}{H} = \frac{N m \langle v_x^2 \rangle}{W H}
+\end{equation}
+
+De manera similar, la presión en la dirección $y$ es:
+\begin{equation}
+    P_y = \frac{N m \langle v_y^2 \rangle}{W H}
+\end{equation}
+
+Dado que el sistema es isotrópico, $\langle v_x^2 \rangle = \langle v_y^2 \rangle = \frac{\langle v^2 \rangle}{2}$, y la presión total es:
+\begin{equation}
+    P = \frac{P_x + P_y}{2} = \frac{N m \langle v^2 \rangle}{2A}
+\end{equation}
+donde $A = W \times H$.
+
+\subsection{Método de Colisiones (Medido)}
+Calculamos la presión directamente a partir de las colisiones con las paredes. Para la pared vertical:
+
+\begin{equation}
+    F_x = \frac{\sum \Delta p_x}{\Delta t} = \frac{\sum 2m|v_x|}{\Delta t}
+\end{equation}
+
+\begin{equation}
+    P_x = \frac{F_x}{H} = \frac{\sum 2m|v_x|}{H \Delta t}
+\end{equation}
+
+Para la pared horizontal:
+\begin{equation}
+    F_y = \frac{\sum \Delta p_y}{\Delta t} = \frac{\sum 2m|v_y|}{\Delta t}
+\end{equation}
+
+\begin{equation}
+    P_y = \frac{F_y}{W} = \frac{\sum 2m|v_y|}{W \Delta t}
+\end{equation}
+
+La presión total se promedia:
+\begin{equation}
+    P_{\text{col}} = \frac{P_x + P_y}{2}
+\end{equation}
+
+
+\subsection{Distribución de Velocidades}
+En el equilibrio térmico, la distribución de magnitudes de velocidad es conocida como la distribución Maxwell-Boltzamann (2D):
+
+\begin{equation}
+    P(v) = \frac{m v}{k_B T} \exp\left(-\frac{m v^2}{2k_B T}\right)
+\end{equation}
+
+
+
+\section{Implementación y Flujo del Programa}
+\label{sec:implementacion}
+
+El programa sigue este flujo secuencial:
+
+\begin{enumerate}
+    \item \textbf{Verificación de aforo} - Garantiza que las partículas quepan en la caja
+    \item \textbf{Inicialización} - Posiciones y velocidades aleatorias sin solapamiento
+    \item \textbf{Bucle principal} - Para cada paso de tiempo:
+    \begin{itemize}
+        \item Mover partículas (Euler)
+        \item Rebotar en paredes y calcular presión por colisiones
+        \item Detectar y resolver colisiones entre partículas
+        \item Calcular presión cinética y energía
+        \item Guardar datos
+    \end{itemize}
+    \item \textbf{Post-procesamiento} - Generar animaciones y gráficas
+\end{enumerate}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\linewidth]{Diagrama de flujo Npepas.png}
+    \label{fig:placeholder}
+\end{figure}
+
+\section{Resultados y Validación}
+\label{sec:resultados}
+
+\subsection{Conservación de Energía}
+La energía total debe conservarse en colisiones elásticas:
+\begin{equation}
+    E_{\text{total}} = \sum_{i=1}^N \frac{1}{2} m v_i^2 = \text{constante}
+\end{equation}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{Energía.png}
+    \label{fig:placeholder}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{Presiones.png}
+    \label{fig:placeholder}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{Histograma.png}
+    \label{fig:placeholder}
+\end{figure}
+
+
+\end{document}
